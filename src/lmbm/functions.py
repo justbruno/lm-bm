@@ -14,9 +14,10 @@ class Softmax:
         return v / np.sum(v)
 
 
-class Alphabet:
+class Lexicon:
     def __init__(self, n: int = 1):
-        self.alphabet = np.arange(n)
+        self.lexicon = np.arange(n)
+        self.size = n
 
 def sample_simplex_matrix(n: int = 2, ddf: int = 0) -> np.ndarray:
     """
