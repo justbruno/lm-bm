@@ -1,0 +1,38 @@
+[build-system]
+requires = [
+  "setuptools>=80",
+  "setuptools-scm>=8",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lmbm"
+dynamic = ["version"]
+description = "LM-BM"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+dev = ["bumpver", "setuptools-scm", "pytest"]
+
+
+ [tool.setuptools_scm]
+# Optional: write the resolved version into a module for runtime access
+ write_to = "src/lmbm/_version.py"
+
+[bumpver]
+current_version = "0.0.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version to {new_version}"
+tag_message = "{new_version}"
+tag_scope = "default"
+commit = true
+tag = true
+push = false  # keep false so the Makefile controls pushing
+
+[bumpver.file_patterns]
+# Only bump current_version inside this file; tags drive the real package version.
+"pyproject.toml" = [
+  'current_version = "{version}"',
+]
