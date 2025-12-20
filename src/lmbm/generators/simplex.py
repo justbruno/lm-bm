@@ -20,11 +20,37 @@ class SimplexCombiner:
             prob_distribution_normalizer = Softmax()
         self.to_prob_distribution = prob_distribution_normalizer
 
+        self.eigenvalues, self.eigenvectors = np.linalg.eig(self.S)
+        self.eigenvectors_inv = np.linalg.inv(self.eigenvectors)
+
     def encode(self, seq: np.ndarray) -> np.ndarray:
         seq = seq[-self.context:]
         a = self.beta ** (np.arange(len(seq))[::-1])  # Larger beta for more recent tokens
+
+        # TODO Add eigenvalue decomposition to consider long range dependencies.
+        #  Note we need a deterministic mapping to a real for the exponent, adequately distributed (e.g. gamma + 2)
+        #  We want to see if 1.01 is still easy to learn
+        #  Heck, is 1 even easy to learn? Try an MLP or LSTM
+        # Core idea:
+        # v,V = np.linalg.eig(S) # This can go in constructor
+        # W = V.dot(np.diag(v**2.4)).dot(np.linalg.inv(V))
+        # return W[:, seq].dot(an)
+
         an = self.to_prob_distribution(a)
-        return self.S[:, seq].dot(an)
+
+        exponent = self.map_to_exponent(seq)
+        W = self.eigenvectors.dot(np.diag(self.eigenvalues**exponent)).dot(self.eigenvectors_inv[:, seq])
+        return W.dot(an)
+        # return self.S[:, seq].dot(an)
+
+    def map_to_exponent(self, seq: np.ndarray) -> float:
+        """
+        Map sequence to real >= 2.
+        :param seq:
+        :return:
+        """
+        # TODO
+        return 2.0
 
     def generate(self, n: int, input: np.ndarray = None) -> list:
         if input is None:
