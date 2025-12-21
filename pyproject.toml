@@ -11,7 +11,7 @@ dynamic = ["version"]
 description = "LM-BM"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["numpy"]
+dependencies = ["numpy", "scipy"]
 
 [project.optional-dependencies]
 dev = ["bumpver", "setuptools-scm", "pytest"]

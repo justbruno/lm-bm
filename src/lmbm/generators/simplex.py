@@ -2,13 +2,13 @@ from typing import Callable
 
 import numpy as np
 from lmbm.functions import Softmax, sample_simplex_matrix, Lexicon
-
+from lmbm.encoding import SequenceToGamma
 
 class SimplexCombiner:
 
     def __init__(self, S: np.ndarray = None, lexicon: Lexicon = None,
                  context: int = 1000, beta: float = 1 / 2,
-                 prob_distribution_normalizer: Callable[[np.ndarray], np.ndarray] = None):
+                 prob_distribution_normalizer: Callable[[np.ndarray], np.ndarray] = None, seq2real = None):
         n = lexicon.size
         if S is None:
             S = sample_simplex_matrix(n, ddf=.9)
@@ -22,6 +22,9 @@ class SimplexCombiner:
 
         self.eigenvalues, self.eigenvectors = np.linalg.eig(self.S)
         self.eigenvectors_inv = np.linalg.inv(self.eigenvectors)
+
+        if seq2real is None:
+            self.seq2real = SequenceToGamma(alpha=1, lambda_=1)
 
     def encode(self, seq: np.ndarray) -> np.ndarray:
         seq = seq[-self.context:]
@@ -49,8 +52,7 @@ class SimplexCombiner:
         :param seq:
         :return:
         """
-        # TODO
-        return 2.0
+        return 2.0 + self.seq2real(seq)
 
     def generate(self, n: int, input: np.ndarray = None) -> list:
         if input is None:
