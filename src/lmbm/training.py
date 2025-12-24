@@ -89,6 +89,7 @@ class SequenceTrainer:
             'epochs_trained': len(train_losses),
             'final_train_loss': train_losses[-1],
             'final_val_loss': val_losses[-1],
+            'n_params': sum(p.numel() for p in model.parameters()),
             **config
         }
         self.run_history.append(run_result)
@@ -142,7 +143,7 @@ def run_sweep(hyperparams: Dict[str, list], train_dataset, val_dataset,
     # Split datasets if needed
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size,
+    val_loader = DataLoader(val_dataset, batch_size=batch_size*4,
                             shuffle=False, num_workers=4, pin_memory=True)
 
     all_results = []
