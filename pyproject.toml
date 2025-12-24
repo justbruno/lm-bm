@@ -22,7 +22,7 @@ dev = ["bumpver", "setuptools-scm", "pytest"]
  write_to = "src/lmbm/_version.py"
 
 [bumpver]
-current_version = "0.2.1"
+current_version = "0.3.0"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "bump version to {new_version}"
 tag_message = "{new_version}"
