@@ -1,8 +1,14 @@
 import hashlib
-from scipy.special import gammaincinv
-from typing import Union, Sequence
-import xxhash
 import math
+from typing import Union, Sequence
+
+import numpy as np
+import xxhash
+from scipy.special import betaincinv
+from scipy.special import gammaincinv
+
+from lmbm.functions import Softmax
+
 
 class SequenceToGamma:
     """
@@ -104,10 +110,6 @@ class SequenceToGamma:
 
     def __repr__(self) -> str:
         return f"SequenceToGamma(alpha={self.alpha}, lambda_={self.lambda_})"
-
-
-import hashlib
-from typing import Union, Sequence
 
 
 class SequenceToPoisson:
@@ -220,3 +222,121 @@ class FastSequenceToPoisson(SequenceToPoisson):
             data = str(sequence).encode('utf-8')
         return xxhash.xxh64(data).intdigest()
 
+
+class SequenceToSimplexBetaDecay:
+    """
+       Deterministic mapping from sequences to points on the n-simplex,
+       with exponential decay via parameter beta ∈ [0, 1].
+
+       - beta > 1: Steep decay.
+       - beta=0.5: smooth decay
+       - beta = 0: uniform
+       """
+
+    def __init__(self, beta: float = 0.9):
+        """
+        :param beta: Base of the exponential.
+        """
+        self.beta = beta
+        self.normalizer = Softmax()
+
+    def __call__(self, sequence: Union[Sequence, str, bytes]) -> np.ndarray:
+        a = np.arange(len(sequence)) ** self.beta  # Larger for more recent tokens
+        return self.normalizer(a)
+
+
+class SequenceToSimplex:
+    """
+    Deterministic mapping from sequences to points on the n-simplex,
+    with controllable concentration via parameter theta ∈ [0, 1].
+
+    - theta=1: concentrated on first component
+    - theta=0.5: uniform on simplex
+    - theta=0: concentrated on last component
+    """
+
+    def __init__(self, n_components: int, theta: float = 0.5):
+        if n_components < 2:
+            raise ValueError("n_components must be >= 2")
+        if not (0 <= theta <= 1):
+            raise ValueError("theta must be in [0, 1]")
+
+        self.n_components = n_components
+        self.theta = theta
+
+    def _hash_to_uniforms(self, sequence: Union[Sequence, str, bytes], n: int) -> list:
+        """Generate n independent uniform [0, 1) values from sequence hash."""
+        if isinstance(sequence, bytes):
+            data = sequence
+        elif isinstance(sequence, str):
+            data = sequence.encode('utf-8')
+        else:
+            data = str(sequence).encode('utf-8')
+
+        uniforms = []
+        for i in range(n):
+            hash_val = xxhash.xxh64(data, seed=i).intdigest()
+            u = hash_val / (1 << 64) #
+            uniforms.append(max(1e-15, min(1 - 1e-15, u)))
+
+        return uniforms
+
+    def _uniforms_to_betas(self, uniforms: list, theta: float) -> list:
+        """Transform uniforms to Beta(theta, 1-theta) via inverse CDF."""
+        if theta == 1.0:
+            return [1.0] * (len(uniforms) - 1) + [0.0]
+        elif theta == 0.0:
+            return [0.0] * len(uniforms)
+        else:
+            return [betaincinv(theta, 1.0 - theta, u) for u in uniforms]
+
+    def _betas_to_stickbreaking(self, betas: list) -> tuple:
+        """Convert Beta samples to stick-breaking weights (ordered)."""
+        n = len(betas)
+        weights = []
+        remaining = 1.0
+
+        for i in range(n - 1):
+            w = betas[i] * remaining
+            weights.append(w)
+            remaining *= (1.0 - betas[i])
+
+        weights.append(remaining)
+        return tuple(weights)
+
+    def _deterministic_permutation(self, uniforms: list, n: int) -> list:
+        """
+        Generate a deterministic permutation of [0, 1, ..., n-1].
+        Uses Fisher-Yates shuffle using the uniforms sequentially.
+        """
+        perm = list(range(n))
+
+        # Use each uniform to make a swap decision
+        for i in range(n - 1):
+            # Use uniform to pick j in [i, n)
+            u = uniforms[i % len(uniforms)]
+            j = i + int(u * (n - i))
+            perm[i], perm[j] = perm[j], perm[i]
+
+        return perm
+
+    def __call__(self, sequence: Union[Sequence, str, bytes]) -> np.ndarray:
+        """Map sequence to point on n-simplex."""
+        # Generate 2*n uniforms: n for stick-breaking, n for permutation
+        uniforms = self._hash_to_uniforms(sequence, 2 * self.n_components)
+
+        # Stick-breaking to get ordered weights
+        betas = self._uniforms_to_betas(uniforms[:self.n_components], self.theta)
+        ordered_point = self._betas_to_stickbreaking(betas)
+
+        # For theta close to 1 or 0, use ordered point (concentrated)
+        # For theta close to 0.5, apply permutation to "spread out" the point
+        if abs(self.theta - 0.5) > 0.1:
+            # Near extremes: use ordered point
+            return np.array(ordered_point)
+        else:
+            # Near middle: permute to get uniform distribution
+            perm = self._deterministic_permutation(uniforms[self.n_components:],
+                                                   self.n_components)
+            permuted = tuple(ordered_point[perm[i]] for i in range(self.n_components))
+            return np.array(permuted)

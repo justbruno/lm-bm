@@ -14,12 +14,7 @@ class Softmax:
         return v / np.sum(v)
 
 
-class Lexicon:
-    def __init__(self, n: int = 1):
-        self.lexicon = np.arange(n)
-        self.size = n
-
-def sample_simplex_matrix(n: int = 2, ddf: int = 0) -> np.ndarray:
+def sample_simplex_matrix(n: int = 2, ddf: float = 0) -> np.ndarray:
     """
     Generate a square random matrix whose columns are points in the simplex.
     :param n: Number and dimension of the points.
@@ -34,6 +29,7 @@ def sample_simplex_matrix(n: int = 2, ddf: int = 0) -> np.ndarray:
 def sample_simplex_matrix_concentrated(n: int = 2, ddf: int = 0, noise: float = 0) -> np.ndarray:
     """
     Generate a square random matrix whose columns are points in the simplex.
+    :param noise: Uniform noise multiplier.
     :param n: Number and dimension of the points.
     :param ddf: Diagonal deflation factor.
     :return: An ndarray containing the matrix.
