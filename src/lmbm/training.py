@@ -143,7 +143,7 @@ def run_sweep(hyperparams: Dict[str, list], train_dataset, val_dataset,
     # Split datasets if needed
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size*4,
+    val_loader = DataLoader(val_dataset, batch_size=batch_size * 4,
                             shuffle=False, num_workers=4, pin_memory=True)
 
     all_results = []

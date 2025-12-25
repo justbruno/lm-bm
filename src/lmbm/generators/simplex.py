@@ -36,7 +36,7 @@ class SimplexCombiner:
             self.seq2real = seq2real
 
         if seq2simplex is None:
-            self.seq2simplex = SequenceToSimplex(n_components=context, theta=.9)
+            self.seq2simplex = SequenceToSimplex(n_components=context, theta=.01)
         else:
             self.seq2simplex = seq2simplex
 
@@ -55,12 +55,16 @@ class SimplexCombiner:
             f"Dimension mismatch. Coefficients vector: {an.shape}. W: {W.shape}"
         return W.dot(an).real  # TODO Safe? Always real?
 
-    def generate(self, n: int, items: list = None) -> list:
+    def generate(self, n: int, seq: list = None) -> list:
         assert n > 0, "N must be at least 1."
-        if items is None:
-            items = np.zeros(n, dtype=np.int32)
-            items[0] = int(np.random.choice(self.lexicon, 1)[0])
-        for i in range(1, n):
+        correction = 0
+        if seq is None:
+            seq = np.random.choice(self.lexicon, 1)
+            correction = 1
+        items = np.hstack([seq, np.zeros(n - correction, dtype=np.int32)])
+        start = len(seq)
+        end = start + n - correction
+        for i in range(start, end):
             p = self.encode(items[:i])
             p = np.round(p, 12)  # I observe numerical zeroes below zero
             self.entropy_estimate.add_sample(p)

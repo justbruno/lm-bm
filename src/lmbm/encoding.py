@@ -246,6 +246,9 @@ class SequenceToSimplexBetaDecay:
 
 
 class SequenceToSimplex:
+    # TODO Large thetas are problematic here because we can get null vectors
+    #  when truncating to consider most recent only
+
     """
     Deterministic mapping from sequences to points on the n-simplex,
     with controllable concentration via parameter theta ∈ [0, 1].
@@ -276,7 +279,7 @@ class SequenceToSimplex:
         uniforms = []
         for i in range(n):
             hash_val = xxhash.xxh64(data, seed=i).intdigest()
-            u = hash_val / (1 << 64) #
+            u = hash_val / (1 << 64)  #
             uniforms.append(max(1e-15, min(1 - 1e-15, u)))
 
         return uniforms
