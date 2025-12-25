@@ -123,7 +123,7 @@ class SequenceToPoisson:
         lambda_ (float): Rate parameter of the Poisson distribution (λ > 0)
     """
 
-    def __init__(self, lambda_: float = 5.0):
+    def __init__(self, lambda_: float = 1.0):
         """
         Initialize with Poisson rate parameter.
 
