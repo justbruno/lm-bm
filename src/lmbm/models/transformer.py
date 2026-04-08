@@ -59,9 +59,13 @@ class NextIntTransformer(nn.Module):
         x: (batch, seq_len) integer token indices
         returns: logits (batch, vocab_size)
         """
+        seq_len = x.size(1)
+        causal_mask = torch.triu(
+            torch.ones(seq_len, seq_len, device=x.device), diagonal=1
+        ).bool()
         emb = self.embedding(x) * math.sqrt(self.d_model)  # (batch, seq_len, d_model)
         emb = self.pos_encoder(emb)
-        enc_out = self.encoder(emb)  # (batch, seq_len, d_model)
+        enc_out = self.encoder(emb, mask=causal_mask)  # (batch, seq_len, d_model)
         last = enc_out[:, -1, :]  # (batch, d_model)
         logits = self.fc_out(last)  # (batch, vocab_size)
         return logits

@@ -73,7 +73,7 @@ class SequenceToGamma:
         hash_int = int.from_bytes(hash_digest[:8], byteorder='big')
         uniform = (hash_int % (2 ** 63)) / (2 ** 63)
 
-        return uniform
+        return max(1e-15, min(1 - 1e-15, uniform))
 
     def __call__(self, sequence: Union[Sequence, str, bytes]) -> float:
         """
@@ -114,10 +114,9 @@ class SequenceToGamma:
 
 class SequenceToPoisson:
     """
-    Ultra-fast mapping from sequences to Poisson-distributed integers.
+    Deterministic mapping from sequences to Poisson-distributed integers.
 
-    Uses MurmurHash3 (non-cryptographic, extremely fast) + direct Poisson sampling.
-    No scipy dependency, pure Python + xxhash.
+    Uses xxhash (non-cryptographic, extremely fast) + direct Poisson sampling.
 
     Attributes:
         lambda_ (float): Rate parameter of the Poisson distribution (λ > 0)
@@ -134,44 +133,15 @@ class SequenceToPoisson:
             raise ValueError(f"lambda_ must be positive, got {lambda_}")
         self.lambda_ = lambda_
 
-    def _murmurhash3(self, sequence: Union[Sequence, str, bytes]) -> int:
-        """
-        Extremely fast 64-bit hash using MurmurHash3 algorithm.
-        ~10x faster than SHA-256 for this use case.
-        """
-        # Convert to bytes
+    def _hash(self, sequence: Union[Sequence, str, bytes]) -> int:
+        """Fast 64-bit hash using xxhash."""
         if isinstance(sequence, bytes):
             data = sequence
         elif isinstance(sequence, str):
             data = sequence.encode('utf-8')
         else:
             data = str(sequence).encode('utf-8')
-
-        # Simple but fast MurmurHash3 64-bit implementation
-        h1 = 0x87c37b91114253d5
-        c1 = 0x87c37b91114253d5
-        c2 = 0x4cf5ad432745937f
-
-        # Process data in 8-byte chunks
-        length = len(data)
-        for i in range(0, length, 8):
-            chunk = int.from_bytes(data[i:i + 8], 'little')
-            k1 = chunk ^ h1
-            k1 = ((k1 * c1) & 0xFFFFFFFFFFFFFFFF) >> 33
-            k1 *= c2
-            k1 = ((k1 & 0xFFFFFFFFFFFFFFFF) >> 33) * c1
-            h1 ^= k1
-            h1 = ((h1 * 5) & 0xFFFFFFFFFFFFFFFF) >> 17
-            h1 = (h1 * c1) & 0xFFFFFFFFFFFFFFFF
-
-        # Finalization
-        h1 ^= length
-        h1 = ((h1 * c1) & 0xFFFFFFFFFFFFFFFF) >> 33
-        h1 *= c2
-        h1 = ((h1 & 0xFFFFFFFFFFFFFFFF) >> 33) * c1
-        h1 ^= h1 >> 16
-
-        return h1
+        return xxhash.xxh64(data).intdigest()
 
     def _poisson_sample(self, seed: int, lambda_: float) -> int:
         """
@@ -184,9 +154,9 @@ class SequenceToPoisson:
 
         seed_state = seed & 0xFFFFFFFFFFFFFFFF
         while p >= L:
-            # Fast LCG PRNG seeded by hash
             seed_state = (
-                                 seed_state * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+                seed_state * 6364136223846793005 + 1442695040888963407
+            ) & 0xFFFFFFFFFFFFFFFF
             u = seed_state / (2 ** 64)
             p *= u
             k += 1
@@ -203,24 +173,15 @@ class SequenceToPoisson:
         Returns:
             int: Poisson(λ)-distributed integer
         """
-        hash_val = self._murmurhash3(sequence)
+        hash_val = self._hash(sequence)
         return self._poisson_sample(hash_val, self.lambda_)
 
     def __repr__(self) -> str:
         return f"SequenceToPoisson(lambda_={self.lambda_:.2f})"
 
 
-class FastSequenceToPoisson(SequenceToPoisson):
-    """10-20x faster than base class using xxhash."""
-
-    def _murmurhash3(self, sequence: Union[Sequence, str, bytes]) -> int:
-        if isinstance(sequence, bytes):
-            data = sequence
-        elif isinstance(sequence, str):
-            data = sequence.encode('utf-8')
-        else:
-            data = str(sequence).encode('utf-8')
-        return xxhash.xxh64(data).intdigest()
+# Keep as alias for backwards compatibility
+FastSequenceToPoisson = SequenceToPoisson
 
 
 class SequenceToSimplexBetaDecay:
@@ -241,7 +202,10 @@ class SequenceToSimplexBetaDecay:
         self.normalizer = Softmax()
 
     def __call__(self, sequence: Union[Sequence, str, bytes]) -> np.ndarray:
-        a = np.arange(len(sequence)) ** self.beta  # Larger for more recent tokens
+        positions = np.arange(len(sequence))
+        decay = positions ** self.beta  # Larger for more recent tokens
+        seq_arr = np.array(sequence, dtype=float)
+        a = decay * (1 + seq_arr)
         return self.normalizer(a)
 
 

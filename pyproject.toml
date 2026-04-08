@@ -17,9 +17,9 @@ dependencies = ["numpy", "scipy", "xxhash", "pandas"]
 dev = ["bumpver", "setuptools-scm", "pytest"]
 
 
- [tool.setuptools_scm]
+[tool.setuptools_scm]
 # Optional: write the resolved version into a module for runtime access
- write_to = "src/lmbm/_version.py"
+write_to = "src/lmbm/_version.py"
 
 [bumpver]
 current_version = "0.4.2"

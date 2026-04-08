@@ -8,17 +8,19 @@ from lmbm.functions import sample_simplex_matrix
 class SimplexCombiner:
 
     def __init__(self, S: np.ndarray = None, n: int = 1, context: int = 1000,
-                 seq2real=None, seq2simplex=None):
+                 seq2real=None, seq2simplex=None, seed: int = None):
         """
 
         :param S: Matrix of word embeddings as columns.
         :param n: Vocabulary size.
         :param context: Context length, i.e. max number of elements in the input sequence used to compute the next token distribution.
         :param seq2real:
+        :param seed: Random seed for reproducibility.
         """
+        self.rng = np.random.default_rng(seed)
         if S is None:
             assert n is not None, "S and n cannot both be None."
-            S = sample_simplex_matrix(n, ddf=.9)
+            S = sample_simplex_matrix(n, ddf=.9, rng=self.rng)
         self.S = S
         n = S.shape[0]
         self.lexicon = np.arange(n)
@@ -48,27 +50,28 @@ class SimplexCombiner:
         if len(seq) != self.context:
             an = an/np.sum(an)
         exponent = self.seq2real(seq)
-        diagonal_items = np.power(self.eigenvalues, exponent, dtype=complex)
+        diagonal_items = np.power(np.abs(self.eigenvalues), exponent)
         W = (self.eigenvectors * diagonal_items).dot(
             self.eigenvectors_inv[:, seq])
         assert an.shape[0] == W.shape[1], \
             f"Dimension mismatch. Coefficients vector: {an.shape}. W: {W.shape}"
-        return W.dot(an).real  # TODO Safe? Always real?
+        return W.dot(an).real
 
     def generate(self, n: int, seq: list = None) -> list:
         assert n > 0, "N must be at least 1."
         correction = 0
         if seq is None:
-            seq = np.random.choice(self.lexicon, 1)
+            seq = self.rng.choice(self.lexicon, 1)
             correction = 1
         items = np.hstack([seq, np.zeros(n - correction, dtype=np.int32)])
         start = len(seq)
         end = start + n - correction
         for i in range(start, end):
             p = self.encode(items[:i])
-            p = np.round(p, 12)  # I observe numerical zeroes below zero
+            p = np.clip(p, 0, None)
+            p = p / np.sum(p)
             self.entropy_estimate.add_sample(p)
-            token = int(np.random.choice(self.lexicon, 1, p=p)[0])
+            token = int(self.rng.choice(self.lexicon, 1, p=p)[0])
             items[i] = token
         return items
 
